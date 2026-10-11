@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لعبة المواطنة الرقمية</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;500;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Tajawal',sans-serif}
+body{background:#0a0e27;color:#fff;min-height:100vh;padding:15px;background-image:radial-gradient(circle at 20% 30%,rgba(46,125,50,0.25),transparent 50%),radial-gradient(circle at 80% 70%,rgba(31,56,100,0.4),transparent 50%)}
+.container{max-width:700px;margin:0 auto}
+.card{background:linear-gradient(145deg,rgba(20,26,55,0.95),rgba(10,14,39,0.95));border:2px solid rgba(0,255,157,0.3);border-radius:20px;padding:25px;margin-bottom:15px}
+h1{font-size:1.5rem;font-weight:900;background:linear-gradient(90deg,#00ff9d,#00b8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;margin-bottom:15px}
+.stage{display:none}.stage.active{display:block;animation:fadeIn 0.4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.name-input{width:100%;background:rgba(0,0,0,0.3);border:2px solid rgba(0,255,157,0.3);color:#fff;padding:15px 20px;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:1rem;outline:none;margin-bottom:15px;text-align:center}
+.name-input:focus{border-color:#00ff9d;box-shadow:0 0 25px rgba(0,255,157,0.3)}
+.btn{width:100%;background:linear-gradient(90deg,#00ff9d,#00b8ff);color:#0a0e27;padding:15px;border-radius:50px;border:none;font-weight:900;font-size:1rem;cursor:pointer;transition:all 0.3s;font-family:'Tajawal',sans-serif;box-shadow:0 8px 25px rgba(0,255,157,0.3)}
+.btn:hover{transform:translateY(-3px);box-shadow:0 15px 35px rgba(0,255,157,0.5)}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.timer-container{background:linear-gradient(135deg,rgba(0,255,157,0.1),rgba(0,184,255,0.1));border:2px solid rgba(0,255,157,0.4);border-radius:20px;padding:18px;text-align:center;margin-bottom:20px}
+.timer-container.warning{border-color:#ffd93d;animation:pulseY 1s infinite}
+.timer-container.danger{border-color:#ff3860;animation:pulseR 0.5s infinite}
+@keyframes pulseY{0%,100%{box-shadow:0 0 20px rgba(255,217,61,0.3)}50%{box-shadow:0 0 40px rgba(255,217,61,0.6)}}
+@keyframes pulseR{0%,100%{box-shadow:0 0 30px rgba(255,56,96,0.5)}50%{box-shadow:0 0 60px rgba(255,56,96,0.9)}}
+.timer-display{font-size:3rem;font-weight:900;color:#00ff9d;line-height:1;font-variant-numeric:tabular-nums}
+.timer-container.warning .timer-display{color:#ffd93d}
+.timer-container.danger .timer-display{color:#ff3860}
+.question{text-align:right;padding:18px;background:rgba(0,184,255,0.08);border-radius:14px;margin:12px 0;border-right:4px solid #00b8ff}
+.question-text{font-size:1.05rem;font-weight:700;margin-bottom:12px}
+.option{background:rgba(255,255,255,0.05);border:2px solid rgba(0,255,157,0.3);color:#fff;padding:12px;border-radius:10px;margin:6px 0;cursor:pointer;text-align:right;transition:all 0.3s;width:100%;font-family:'Tajawal',sans-serif;font-size:0.9rem}
+.option:hover{background:rgba(0,255,157,0.15);border-color:#00ff9d}
+.option.selected{background:rgba(0,255,157,0.3);border-color:#00ff9d;font-weight:700}
+.waiting{text-align:center;padding:40px 20px}
+.waiting .icon{font-size:5rem;animation:bounce 2s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
+.waiting h2{color:#00ff9d;margin:20px 0;font-size:1.2rem}
+.waiting p{color:#a0b0d0;line-height:1.7}
+.score{font-size:3.5rem;font-weight:900;color:#00ff9d;text-align:center;margin:20px 0}
+.score-lbl{text-align:center;color:#a0b0d0;margin-bottom:20px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}
+.stat{background:rgba(0,255,157,0.1);border:2px solid rgba(0,255,157,0.3);border-radius:14px;padding:15px;text-align:center}
+.stat .num{font-size:1.6rem;font-weight:900;color:#00ff9d}
+.stat .lbl{color:#a0b0d0;font-size:0.8rem;margin-top:5px}
+.leaderboard-item{display:flex;align-items:center;gap:12px;padding:12px 15px;background:rgba(255,255,255,0.04);border-radius:10px;margin-bottom:8px;border-right:3px solid #00b8ff}
+.leaderboard-item.me{background:rgba(0,255,157,0.15);border-right-color:#00ff9d}
+.rank{font-size:1.2rem;font-weight:900;min-width:30px;text-align:center}
+.rank.gold{color:#ffd93d}.rank.silver{color:#c0c0c0}.rank.bronze{color:#cd7f32}
+.lb-name{flex:1;font-weight:700;font-size:0.9rem}
+.lb-score{color:#00ff9d;font-weight:900;font-size:1rem}
+.time-up{position:fixed;inset:0;background:rgba(255,56,96,0.95);z-index:9999;display:none;justify-content:center;align-items:center;flex-direction:column;padding:20px;text-align:center}
+.time-up.active{display:flex;animation:fadeIn 0.4s ease}
+.time-up .bell{font-size:5rem;animation:ring 0.5s infinite}
+@keyframes ring{0%,100%{transform:rotate(-15deg)}50%{transform:rotate(15deg)}}
+.time-up h2{font-size:2.5rem;color:#fff;font-weight:900;margin-top:20px}
+.error-box{background:rgba(255,56,96,0.2);border:2px solid #ff3860;border-radius:12px;padding:20px;text-align:center;color:#ff3860;margin:20px 0}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="stage" id="stage-error">
+<div class="card">
+<div class="error-box" id="errorMessage">حدث خطأ</div>
+</div>
+</div>
+
+<div class="stage active" id="stage-register">
+<div class="card">
+<h1 id="activityTitle">🎯 نشاط تفاعلي</h1>
+<p style="color:#a0b0d0;text-align:center;margin-bottom:20px" id="activityDesc">—</p>
+<input type="text" class="name-input" id="playerName" placeholder="اكتبي اسمك هنا...">
+<button class="btn" onclick="register()">🚀 ابدئي النشاط</button>
+</div>
+</div>
+
+<div class="stage" id="stage-waiting">
+<div class="card">
+<div class="waiting">
+<div class="icon">⏳</div>
+<h2>في انتظار بدء النشاط...</h2>
+<p>المدربة ستبدأ النشاط قريباً<br><span style="color:#ffd93d">مسجّلة باسم: <b id="waitingName">—</b></span></p>
+</div>
+</div>
+</div>
+
+<div class="stage" id="stage-play">
+<div class="card">
+<div class="timer-container" id="timerContainer">
+<div class="timer-display" id="timerDisplay">02:00</div>
+</div>
+<div id="questionsContainer"></div>
+<button class="btn" style="margin-top:15px" onclick="submitScore()" id="submitBtn">✅ إرسال الإجابات</button>
+</div>
+</div>
+
+<div class="stage" id="stage-result">
+<div class="card">
+<h1>🎉 أحسنتِ!</h1>
+<div class="score" id="myScore">0</div>
+<div class="score-lbl">نقطة</div>
+<div class="stats-grid">
+<div class="stat"><div class="num" id="correctCount">0/5</div><div class="lbl">إجابات صحيحة</div></div>
+<div class="stat"><div class="num" id="timeBonus">0</div><div class="lbl">مكافأة السرعة</div></div>
+</div>
+<h3 style="color:#00ff9d;margin:20px 0 12px;text-align:center">🏆 لوحة الترتيب</h3>
+<div id="leaderboard"></div>
+<button class="btn" style="margin-top:15px;background:transparent;border:2px solid rgba(0,255,157,0.5);color:#00ff9d" onclick="location.reload()">🔄 إعادة اللعب</button>
+</div>
+</div>
+
+</div>
+
+<div class="time-up" id="timeUp">
+<div class="bell">🔔</div>
+<h2>انتهى الوقت!</h2>
+<p style="color:#fff;margin-top:15px;font-weight:700">توقفي عن اللعب</p>
+</div>
+
+<script>
+// ====== Firebase Compat ======
+const firebaseConfig = {
+  apiKey: "AIzaSyAW-GQ4bLU-AnpO8EN8NxU-DvKxIpMMMHI",
+  authDomain: "almwatnh-e2a3b.firebaseapp.com",
+  projectId: "almwatnh-e2a3b",
+  storageBucket: "almwatnh-e2a3b.firebasestorage.app",
+  messagingSenderId: "669085630920",
+  appId: "1:669085630920:web:22b0068089f72ef72e80fd"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ====== الثوابت ======
+const ACTIVITIES = {
+  timeline: { title: 'خط الزمن الرقمي', icon: '📅', duration: 120, type: 'drag-sort', items: [
+    {label:'1969 — أول رسالة عبر الإنترنت', order:1},
+    {label:'1991 — ظهور الويب العام', order:2},
+    {label:'2004 — انطلاق فيسبوك', order:3},
+    {label:'2010 — ثورة الهواتف الذكية', order:4},
+    {label:'2023 — انتشار الذكاء الاصطناعي', order:5}
+  ]},
+  match: { title: 'الكلمات المتقاطعة', icon: '🧩', duration: 120, type: 'match', pairs: [
+    {left:'المواطنة الرقمية هي...', right:'...القدرة على المشاركة'},
+    {left:'...بأمان ومسؤولية...', right:'...في الفضاء الرقمي'}
+  ]},
+  traits: { title: 'صيد الصفات', icon: '🎯', duration: 120, type: 'multi-select', correct: ['أحترم آراء الآخرين','أتحقق من الأخبار','أحافظ على بياناتي','أنسب المحتوى لأصحابه'], wrong: ['أنشر كل ما أراه','أشارك كلمات المرور','أصدق كل خبر'] },
+  quiz: { title: 'مسابقة سريعة', icon: '❓', duration: 120, type: 'quiz', questions: [
+    {q: 'ما هي المواطنة الرقمية؟', options: ['استخدام الإنترنت للترفيه','القدرة على المشاركة بأمان ومسؤولية','منع الأطفال','برنامج حماية'], correct: 1},
+    {q: 'ما أقوى كلمة مرور؟', options: ['123456','Sara2010','P@ssw0rd!2024#','اسمي'], correct: 2},
+    {q: 'كيف نحمي أنفسنا من الأخبار المزيفة؟', options: ['ننشرها بسرعة','نتحقق من المصدر','نصدق كل شيء','نشاركها مع الأصدقاء'], correct: 1},
+    {q: 'ما المقصود بالبصمة الرقمية؟', options: ['بصمة الإصبع','أثر نشاطنا على الإنترنت','كلمة مرور','برنامج حماية'], correct: 1},
+    {q: 'أي مما يلي سلوك مواطن رقمي صالح؟', options: ['نشر كل ما نراه','مشاركة كلمات المرور','التحقق قبل النشر','استخدام هوية مزيفة'], correct: 2}
+  ]}
+};
+
+// ====== الحالة ======
+const urlParams = new URLSearchParams(window.location.search);
+const roomCode = urlParams.get('room');
+let myName = '', currentActivity = null, myScore = 0;
+let startTime = 0, timerInterval = null, timerRemaining = 120, timerTotal = 120;
+let gameStarted = false, finished = false, answers = [];
+
+// ====== الأصوات ======
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playTone(freq, dur, type='sine', vol=0.3, delay=0) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type; osc.frequency.value = freq;
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  const t = audioCtx.currentTime + delay;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(vol, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.start(t); osc.stop(t + dur);
+}
+function playTick() { initAudio(); playTone(1200, 0.08, 'square', 0.15); }
+function playAlarm() { initAudio(); [880,660,880,660,880].forEach((f,i) => playTone(f, 0.3, 'square', 0.25, i*0.35)); }
+function playSuccess() { initAudio(); playTone(523,0.15,'sine',0.2,0); playTone(659,0.15,'sine',0.2,0.15); playTone(784,0.3,'sine',0.2,0.3); }
+
+// ====== التنقل بين الشاشات ======
+function showStage(name) {
+  document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+  document.getElementById('stage-' + name).classList.add('active');
+}
+function showError(msg) {
+  document.getElementById('errorMessage').textContent = msg;
+  showStage('error');
+}
+
+// ====== بدء التحميل ======
+if (!roomCode) {
+  showError('لم يتم تحديد غرفة. تأكدي من الرابط الذي أرسلته المدربة.');
+} else {
+  loadRoom();
+}
+
+async function loadRoom() {
+  try {
+    const roomSnap = await db.collection('rooms').doc(roomCode).get();
+    if (!roomSnap.exists) { showError('الغرفة غير موجودة.'); return; }
+    const data = roomSnap.data();
+    const actKey = data.activityId;
+    currentActivity = ACTIVITIES[actKey];
+    if (!currentActivity) { showError('النشاط غير معروف'); return; }
+    currentActivity.id = actKey;
+    document.getElementById('activityTitle').textContent = currentActivity.icon + ' ' + currentActivity.title;
+    document.getElementById('activityDesc').textContent = 'النشاط جاهز — انتظري بدء المدربة';
+    
+    // الاستماع لحالة الغرفة
+    db.collection('rooms').doc(roomCode).onSnapshot(snap => {
+      if (!snap.exists) return;
+      const d = snap.data();
+      if (d.status === 'active' && !gameStarted && myName) startGame();
+    });
+  } catch(e) {
+    showError('خطأ في الاتصال: ' + e.message);
+  }
+}
+
+window.register = async function() {
+  const input = document.getElementById('playerName');
+  myName = input.value.trim();
+  if (!myName) { alert('اكتبي اسمك أولاً'); return; }
+  if (!currentActivity) { alert('الغرفة لم تُحمّل بعد'); return; }
+  
+  try {
+    const playerRef = db.collection('rooms').doc(roomCode).collection('players').doc(myName);
+    const existing = await playerRef.get();
+    if (existing.exists) { alert('هذا الاسم مستخدم مسبقاً في هذه الغرفة'); return; }
+    
+    await playerRef.set({
+      name: myName, score: 0, status: 'waiting',
+      finishTime: null, joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    document.getElementById('waitingName').textContent = myName;
+    showStage('waiting');
+  } catch(e) { alert('خطأ: ' + e.message); }
+};
+
+function startGame() {
+  if (gameStarted) return;
+  gameStarted = true;
+  showStage('play');
+  initAudio();
+  
+  const container = document.getElementById('questionsContainer');
+  const type = currentActivity.type;
+  
+  if (type === 'drag-sort') initDragSort(container);
+  else if (type === 'match') initMatch(container);
+  else if (type === 'multi-select') initMultiSelect(container);
+  else if (type === 'quiz') initQuiz(container);
+  
+  startTimer(currentActivity.duration);
+  startTime = Date.now();
+  
+  db.collection('rooms').doc(roomCode).collection('players').doc(myName).update({status: 'playing'});
+}
+
+// ====== الأنشطة ======
+function initDragSort(container) {
+  const items = [...currentActivity.items].sort(() => Math.random() - 0.5);
+  container.innerHTML = '<div style="color:#00ff9d;font-weight:700;margin-bottom:10px">🎯 رتّبي من الأقدم إلى الأحدث (اكتبي الأرقام)</div><div id="sortList"></div>';
+  const list = document.getElementById('sortList');
+  items.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'option';
+    el.style.cursor = 'default';
+    el.innerHTML = `${item.label} <input type="number" min="1" max="5" style="width:50px;background:#000;color:#fff;border:1px solid #00ff9d;border-radius:6px;padding:5px;margin-right:8px" data-order="${item.order}">`;
+    list.appendChild(el);
+  });
+}
+
+function initMatch(container) {
+  const pairs = currentActivity.pairs;
+  const lefts = pairs.map(p => p.left).sort(() => Math.random() - 0.5);
+  container.innerHTML = '<div style="color:#00ff9d;font-weight:700;margin-bottom:10px">🎯 اختاري المطابقة الصحيحة</div><div id="matchList"></div>';
+  const list = document.getElementById('matchList');
+  lefts.forEach(left => {
+    const correctRight = pairs.find(p => p.left === left).right;
+    const allRights = pairs.map(p => p.right).sort(() => Math.random() - 0.5);
+    const div = document.createElement('div');
+    div.className = 'question';
+    div.innerHTML = `<div class="question-text">${left}</div>` +
+      allRights.map(r => `<button class="option" onclick="selectMatch(this, '${r.replace(/'/g,"\\'")}', '${correctRight.replace(/'/g,"\\'")}')">${r}</button>`).join('');
+    list.appendChild(div);
+  });
+}
+
+window.selectMatch = function(btn, chosen, correct) {
+  const siblings = btn.parentElement.querySelectorAll('.option');
+  siblings.forEach(s => s.classList.remove('selected'));
+  btn.classList.add('selected');
+  btn.dataset.correct = (chosen === correct) ? 'true' : 'false';
+};
+
+function initMultiSelect(container) {
+  const all = [...currentActivity.correct, ...currentActivity.wrong].sort(() => Math.random() - 0.5);
+  container.innerHTML = '<div style="color:#00ff9d;font-weight:700;margin-bottom:10px">🎯 اختاري الصفات الصحيحة</div><div id="multiList"></div>';
+  const list = document.getElementById('multiList');
+  all.forEach(item => {
+    const btn = document.createElement('button');
+    btn.className = 'option';
+    btn.textContent = item;
+    btn.dataset.correct = currentActivity.correct.includes(item);
+    btn.onclick = () => btn.classList.toggle('selected');
+    list.appendChild(btn);
+  });
+}
+
+function initQuiz(container) {
+  container.innerHTML = '<div id="quizContainer"></div>';
+  const c = document.getElementById('quizContainer');
+  answers = new Array(currentActivity.questions.length).fill(-1);
+  currentActivity.questions.forEach((q, qi) => {
+    const div = document.createElement('div');
+    div.className = 'question';
+    div.innerHTML = `<div class="question-text">${qi+1}. ${q.q}</div>` +
+      q.options.map((opt, oi) => `<button class="option" id="q${qi}_o${oi}" onclick="selectQuiz(${qi}, ${oi})">${opt}</button>`).join('');
+    c.appendChild(div);
+  });
+}
+
+window.selectQuiz = function(qi, oi) {
+  answers[qi] = oi;
+  const q = currentActivity.questions[qi];
+  for (let i = 0; i < q.options.length; i++) {
+    const btn = document.getElementById(`q${qi}_o${i}`);
+    if (btn) btn.classList.toggle('selected', i === oi);
+  }
+};
+
+// ====== المؤقت ======
+function startTimer(seconds) {
+  timerTotal = seconds; timerRemaining = seconds;
+  updateTimerDisplay();
+  timerInterval = setInterval(() => {
+    timerRemaining--;
+    updateTimerDisplay();
+    if (timerRemaining <= 10 && timerRemaining > 0) playTick();
+    if (timerRemaining <= 0) { clearInterval(timerInterval); timerFinished(); }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const display = document.getElementById('timerDisplay');
+  const container = document.getElementById('timerContainer');
+  const m = Math.floor(timerRemaining/60), s = timerRemaining%60;
+  display.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  container.classList.remove('warning','danger');
+  if (timerRemaining <= 10) container.classList.add('danger');
+  else if (timerRemaining <= 30) container.classList.add('warning');
+}
+
+function timerFinished() {
+  playAlarm();
+  document.getElementById('timeUp').classList.add('active');
+  if (navigator.vibrate) navigator.vibrate([500,200,500,200,500]);
+  setTimeout(() => submitScore(), 2000);
+}
+
+// ====== حساب النقاط ======
+function calculateScore() {
+  let score = 0, correct = 0;
+  const type = currentActivity.type;
+  
+  if (type === 'drag-sort') {
+    document.querySelectorAll('#sortList input').forEach(input => {
+      const entered = parseInt(input.value);
+      const correct_order = parseInt(input.dataset.order);
+      if (entered === correct_order) { score += 20; correct++; }
+      input.parentElement.style.borderColor = (entered === correct_order) ? '#00ff9d' : '#ff3860';
+    });
+  } else if (type === 'match') {
+    document.querySelectorAll('#matchList .option.selected').forEach(btn => {
+      if (btn.dataset.correct === 'true') { score += 30; correct++; }
+    });
+  } else if (type === 'multi-select') {
+    document.querySelectorAll('#multiList .option').forEach(btn => {
+      const isC = btn.dataset.correct === 'true';
+      const isS = btn.classList.contains('selected');
+      if (isC && isS) { score += 15; correct++; }
+      else if (!isC && isS) score -= 5;
+    });
+    score = Math.max(0, score);
+  } else if (type === 'quiz') {
+    answers.forEach((ans, i) => {
+      if (ans === currentActivity.questions[i].correct) { score += 20; correct++; }
+    });
+  }
+  return { score: Math.max(0, score), correct: correct };
+}
+
+window.submitScore = async function() {
+  if (finished) return;
+  finished = true;
+  clearInterval(timerInterval);
+  
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const result = calculateScore();
+  const timeBonus = Math.max(0, timerRemaining);
+  const finalScore = result.score + timeBonus;
+  
+  try {
+    await db.collection('rooms').doc(roomCode).collection('players').doc(myName).update({
+      score: finalScore, status: 'done', finishTime: elapsed,
+      submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch(e) { console.error(e); }
+  
+  playSuccess();
+  document.getElementById('myScore').textContent = finalScore;
+  document.getElementById('correctCount').textContent = result.correct + '/' + (currentActivity.type === 'quiz' ? currentActivity.questions.length : 5);
+  document.getElementById('timeBonus').textContent = '+' + timeBonus;
+  showStage('result');
+  loadLeaderboard();
+  setInterval(loadLeaderboard, 3000);
+};
+
+async function loadLeaderboard() {
+  try {
+    const snap = await db.collection('rooms').doc(roomCode).collection('players').get();
+    const players = [];
+    snap.forEach(d => players.push(d.data()));
+    players.sort((a,b) => {
+      if ((b.score||0) !== (a.score||0)) return (b.score||0)-(a.score||0);
+      return (a.finishTime||9999)-(b.finishTime||9999);
+    });
+    document.getElementById('leaderboard').innerHTML = players.map((p,i) => {
+      const rankClass = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+      const isMe = p.name === myName;
+      return `<div class="leaderboard-item ${isMe?'me':''}"><span class="rank ${rankClass}">${i+1}</span><span class="lb-name">${p.name} ${isMe?'(أنتِ)':''}</span><span class="lb-score">${p.score||0}</span></div>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+</script>
+</body>
+</html>
